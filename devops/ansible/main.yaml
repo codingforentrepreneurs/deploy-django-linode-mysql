@@ -1,0 +1,19 @@
+---
+- hosts: webapps
+  become: yes
+  roles:
+    - docker-install
+    - django-app
+  vars_files:
+    - vars/main.yaml
+  tasks:
+    - name: Login to Docker via vars/main.yaml
+      shell: "echo \"{{ docker_token }}\" | docker login -u {{ docker_username }} --password-stdin" 
+    - name: Run our Django app in the Background
+      shell: echo "Running Docker Compose for Django App"
+      notify: docker-compose start django app
+
+- hosts: loadbalancer
+  become: yes
+  roles:
+    - nginx-lb

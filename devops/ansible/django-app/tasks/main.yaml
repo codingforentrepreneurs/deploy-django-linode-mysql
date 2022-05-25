@@ -1,0 +1,31 @@
+- name: Waiting to connect to remote
+  wait_for_connection:
+    sleep: 10
+    timeout: 600
+
+- name: Ensure destination config dir exists
+  file:
+    path: /var/www/app/certs/
+    state: directory
+
+- name: Copy .env file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir | dirname | dirname }}/.env.prod"
+    dest: /var/www/app/.env
+
+- name: Host to Env File
+  shell: "echo \"\n\nWEBAPP_NODE_HOST={{ inventory_hostname }}\" >> /var/www/app/.env" 
+
+- name: Load Balancer to Env File
+  shell: "echo \"\n\nLOAD_BALANCER_HOST={{ groups['loadbalancer'][0] }}\" >> /var/www/app/.env" 
+  when: "groups['loadbalancer']|length == 1"
+
+- name: Copy db cert file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir | dirname | dirname }}/certs/db.crt"
+    dest: /var/www/app/certs/db.crt
+
+- name: Add Docker Compose
+  template:
+    src: ./templates/docker-compose.yaml.jinja2
+    dest: /var/www/app/docker-compose.prod.yaml

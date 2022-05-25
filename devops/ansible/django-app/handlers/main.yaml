@@ -1,0 +1,23 @@
+
+- name: docker-compose start django app
+  shell: docker-compose -f /var/www/app/docker-compose.prod.yaml --profile app up -d --force-recreate 
+  timeout: 300 # 5 minutes
+
+- name: docker-compose force rebuild django app
+  shell: |
+    cd /var/www/app/
+    docker-compose -f docker-compose.prod.yaml --profile app stop
+    docker-compose rm -f
+    docker-compose pull   
+    docker-compose -f docker-compose.prod.yaml --profile app up -d --force-recreate 
+
+- name: docker-compose start redis
+  shell: docker-compose -f /var/www/app/docker-compose.prod.yaml --profile redis up -d --force-recreate 
+
+- name: docker-compose force rebuild redis
+  shell: |
+    cd /var/www/app/
+    docker-compose -f docker-compose.prod.yaml --profile redis stop
+    docker-compose rm -f
+    docker-compose pull
+    docker-compose -f docker-compose.prod.yaml --profile redis up -d --force-recreate 

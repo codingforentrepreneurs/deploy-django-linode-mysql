@@ -1,0 +1,159 @@
+name: 4 - Apply Infrastructure via Terraform and Ansible
+
+on:
+  workflow_call:
+    secrets:
+      ALLOWED_HOST:
+        required: false
+      DJANGO_SECRET_KEY:
+        required: true
+      DJANGO_VM_COUNT:
+        required: true
+      DOCKERHUB_APP_NAME:
+         required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      DOCKERHUB_USERNAME:
+        required: true
+      LINODE_BUCKET_REGION:
+        required: true
+      LINODE_BUCKET_ACCESS_KEY:
+        required: true
+      LINODE_BUCKET_SECRET_KEY:
+        required: true
+      LINODE_IMAGE:
+        required: true
+      LINODE_OBJECT_STORAGE_DEVOPS_BUCKET:
+        required: true
+      LINODE_OBJECT_STORAGE_DEVOPS_TF_KEY:
+        required: true
+      LINODE_OBJECT_STORAGE_DEVOPS_ACCESS_KEY:
+        required: true
+      LINODE_OBJECT_STORAGE_DEVOPS_SECRET_KEY:
+        required: true
+      LINODE_BUCKET:
+        required: true
+      LINODE_PA_TOKEN:
+        required: true
+      MYSQL_DB_CERT:
+        required: true
+      MYSQL_DATABASE:
+        required: true
+      MYSQL_HOST:
+        required: true
+      MYSQL_DB_ROOT_PASSWORD:
+        required: true
+      MYSQL_DB_PORT:
+        required: true
+      MYSQL_USER:
+        required: true
+      ROOT_USER_PW: 
+        required: true
+      SSH_PUB_KEY:
+        required: true
+      SSH_DEVOPS_KEY_PUBLIC:
+        required: true
+      SSH_DEVOPS_KEY_PRIVATE:
+        required: true
+  workflow_dispatch:
+
+jobs:
+   terraform_ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.9
+      - name: Add Terraform Backend for S3
+        run: |
+          cat << EOF > devops/tf/backend
+          skip_credentials_validation = true
+          skip_region_validation = true
+          bucket="${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_BUCKET }}"
+          key="${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_TF_KEY }}"
+          region="us-southeast-1"
+          endpoint="us-southeast-1.linodeobjects.com"
+          access_key="${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_ACCESS_KEY }}"
+          secret_key="${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_SECRET_KEY }}"
+          EOF
+      - name: Add Terraform TFVars
+        run: |
+          cat << EOF > devops/tf/terraform.tfvars
+          linode_pa_token="${{ secrets.LINODE_PA_TOKEN }}"
+          authorized_key="${{ secrets.SSH_DEVOPS_KEY_PUBLIC }}"
+          root_user_pw="${{ secrets.ROOT_USER_PW }}"
+          app_instance_vm_count="${{ secrets.DJANGO_VM_COUNT }}"
+          linode_image="${{ secrets.LINODE_IMAGE }}"
+          EOF
+      - name: Terraform Init
+        run: terraform -chdir=./devops/tf init -backend-config=backend
+      - name: Terraform Validate 
+        run: terraform -chdir=./devops/tf validate -no-color
+      - name: Terraform Apply Changes 
+        run: terraform -chdir=./devops/tf apply -auto-approve
+      - name: Add MySQL Cert
+        run: |
+          mkdir -p certs
+          cat << EOF > certs/db.crt
+          ${{ secrets.MYSQL_DB_CERT }}
+          EOF
+      - name: Add SSH Keys
+        run: |
+          cat << EOF > devops/ansible/devops-key
+          ${{ secrets.SSH_DEVOPS_KEY_PRIVATE }}
+          EOF
+      - name: Update devops private key permissions
+        run: |
+          chmod 400 devops/ansible/devops-key
+      - name: Install Ansible
+        run: |
+          pip install ansible
+      - name: Add Production Environment Variables to Instance
+        run: |
+          cat << EOF > .env.prod
+          ALLOWED_HOST=${{ secrets.ALLOWED_HOST }}
+          # required keys
+          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_BACKEND=mysql
+          DJANGO_DEBUG="0"
+          DJANGO_STORAGE_SERVICE=linode
+          # mysql db setup
+          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER=${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_DB_ROOT_PASSWORD }}
+          MYSQL_TCP_PORT=${{ secrets.MYSQL_DB_PORT }}
+          MYSQL_HOST=${{ secrets.MYSQL_DB_HOST }}
+          # static files connection
+          LINODE_BUCKET=${{ secrets.LINODE_BUCKET }}
+          LINODE_BUCKET_REGION=${{ secrets.LINODE_BUCKET_REGION }}
+          LINODE_BUCKET_ACCESS_KEY=${{ secrets.LINODE_BUCKET_ACCESS_KEY }}
+          LINODE_BUCKET_SECRET_KEY=${{ secrets.LINODE_BUCKET_SECRET_KEY }}
+          EOF
+      - name: Adding or Override Ansible Config File
+        run: |
+          cat << EOF > devops/ansible/ansible.cfg
+          [defaults]
+          ansible_python_interpreter='/usr/bin/python3'
+          deprecation_warnings=False
+          inventory=./inventory.ini
+          remote_user="root"
+          host_key_checking=False
+          private_key_file = ./devops-key
+          retries=2
+          EOF
+      - name: Adding Ansible Variables
+        run: |
+          mkdir -p devops/ansible/vars/
+          cat << EOF > devops/ansible/vars/main.yaml
+          ---
+          docker_appname: "${{ secrets.DOCKERHUB_APP_NAME }}"
+          docker_token: "${{ secrets.DOCKERHUB_TOKEN }}"
+          docker_username: "${{ secrets.DOCKERHUB_USERNAME }}"
+          EOF
+      - name: Run main playbook
+        run: |
+          ANSIBLE_CONFIG=devops/ansible/ansible.cfg ansible-playbook devops/ansible/main.yaml

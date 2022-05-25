@@ -1,0 +1,48 @@
+- name: Update Apt Cache
+  apt:
+    update_cache: yes
+  
+- name: Install System Requirements
+  apt:
+    name: "{{ item }}"
+    state: latest
+  with_items: 
+    - curl
+    - git
+    - build-essential
+    - python3-dev
+    - python3-pip
+    - python3-venv
+
+
+- name: Grab Docker Install Script
+  get_url:
+    url: https://get.docker.com
+    dest: /tmp/get-docker.sh
+    mode: 0755
+  notify: exec docker script
+
+- name: Verify Docker Command
+  shell: command -v docker >/dev/null 2>&1
+  ignore_errors: true
+  register: docker_exists
+
+- debug: msg="{{ docker_exists.rc }}"
+
+- name: Trigger docker install script if docker not running
+  shell: echo "Docker command"
+  when: docker_exists.rc != 0
+  notify: exec docker script
+
+
+- name: Verify Docker Compose Command
+  shell: command -v docker-compose >/dev/null 2>&1
+  ignore_errors: true
+  register: docker_compose_exists
+
+- debug: msg="{{ docker_compose_exists.rc }}"
+
+- name: Install docker-compose for Python 3 using pip3
+  shell: echo "Install Docker Compose"
+  when: docker_compose_exists.rc != 0
+  notify: install docker compose

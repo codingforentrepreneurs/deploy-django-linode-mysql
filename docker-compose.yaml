@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  app:
+    image: cfe-django-blog
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    profiles:
+      - app_too
+    depends_on:
+      - mysql_db
+  mysql_db:
+    image: mysql:8.0.26
+    restart: always
+    env_file: .env
+    ports:
+      - "3307:3307"
+    expose:
+      - 3307
+    volumes:
+      - mysql-volume:/var/lib/mysql
+    profiles:
+      - main
+      - app_too
+
+volumes:
+  mysql-volume:

@@ -1,0 +1,40 @@
+name: MySQL Client to Configure Linode Database
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mysql_client:
+    runs-on: ubuntu-latest
+    steps:
+       - name: Update packages
+         run: sudo apt-get update
+       - name: Install mysql client
+         run: sudo apt-get install mysql-client -y
+       - name: Mysql Version
+         run: echo $(mysql --version)
+       - name: Config Create
+         run: |
+          cat << EOF > db-config
+          [client]
+          user=${{ secrets.MYSQL_DB_ROOT_USER }}
+          password=${{ secrets.MYSQL_DB_ROOT_PASSWORD }}
+          host=${{ secrets.MYSQL_DB_HOST }}
+          port=${{ secrets.MYSQL_DB_PORT }}
+          EOF
+       - name: Add SSL Cert
+         run: |
+          cat << EOF > db.crt
+          ${{ secrets.MYSQL_DB_CERT }}
+          EOF
+       - name: SQL Init Script
+         run: |
+          cat << EOF > db-init.sql
+          CREATE DATABASE IF NOT EXISTS ${{ secrets.MYSQL_DATABASE }} CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+          CREATE USER IF NOT EXISTS ${{ secrets.MYSQL_USER }} IDENTIFIED BY '${{ secrets.MYSQL_PASSWORD }}';
+          SET GLOBAL time_zone = "+00:00";
+          GRANT ALL PRIVILEGES ON ${{ secrets.MYSQL_DATABASE }}.* TO ${{ secrets.MYSQL_USER }};
+          GRANT ALL PRIVILEGES ON \`test_${{ secrets.MYSQL_DATABASE }}\_%\`.* TO ${{ secrets.MYSQL_USER }};
+          EOF
+       - name: Run Command
+         run: mysql --defaults-extra-file=db-config --ssl-ca=db.crt  < db-init.sql

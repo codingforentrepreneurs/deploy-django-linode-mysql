@@ -1,0 +1,29 @@
+
+- name: Waiting to connect
+  wait_for_connection:
+    sleep: 10
+    timeout: 600
+
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Ensure nginx is started and enabled to start at boot.
+  service: 
+    name: nginx 
+    state: started 
+    enabled: yes
+
+- name: Add Nginx Config
+  template:
+    src: ./templates/nginx-lb.conf.jinja
+    dest: /etc/nginx/sites-available/default
+  notify: reload nginx
+
+- name: Enable New Nginx Config
+  file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link 

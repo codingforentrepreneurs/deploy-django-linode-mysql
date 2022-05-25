@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  watchtower:
+    image: index.docker.io/containrrr/watchtower:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/config.json
+    command: --interval 30
+    profiles:
+      - app
+  app:
+    image: index.docker.io/codingforentrepreneurs/cfe-django-blog.com:latest
+    restart: always
+    env_file: ./.env
+    container_name: prod_django_app
+    environment:
+      - PORT=8080
+    ports:
+      - "80:8080"
+    expose:
+      - 80
+    volumes:
+      - ./certs:/app/certs
+    profiles:
+      - app
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    expose: 
+        - 6379
+    volumes:
+        - redis_data:/data
+    entrypoint: redis-server --appendonly yes
+    profiles:
+      - redis
+
+volumes: 
+    redis_data:

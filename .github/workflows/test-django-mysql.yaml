@@ -1,0 +1,62 @@
+name: 1- Test Django & MySQL
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  django_mysql:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    # Change the default working directory relative to your repo root.
+    defaults:
+      run:
+        working-directory: ./
+    # Add in environment variables for the entire "build" job
+    env:
+      MYSQL_DATABASE: cfeblog_db
+      MYSQL_USER: cfe_blog_user # do *not* use root; cannot re-create the root user
+      MYSQL_ROOT_PASSWORD: 2mLTcmdPzU2LOa0TpAlLPoNf1XtIKsKvNn5WBiszczs
+      MYSQL_TCP_PORT: 3306
+      MYSQL_HOST: 127.0.0.1
+      GITHUB_ACTIONS: true
+      DJANGO_SECRET_KEY: test-key-not-good
+      DATABASE_BACKEND: mysql
+    services:
+      mysql:
+        image: mysql:8.0.28
+        env:
+          # references the environment variables set at the job-level
+          MYSQL_DATABASE: ${{ env.MYSQL_DATABASE }}
+          MYSQL_HOST: ${{ env.MYSQL_HOST }}
+          MYSQL_USER: ${{ env.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      # When you're using python, this is a required step
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v2
+        with:
+          # add quotes around version so 3.10 does not become 3.1
+          python-version: "3.10"
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+      - name: Run Tests
+        # Add additional step-specific environment variables
+        env:
+          DEBUG: "0"
+          # must use the root user on MySQL to run tests
+          MYSQL_USER: "root"
+          # references the environment variables set at the job-level
+          DATABASE_BACKEND: ${{ env.DATABASE_BACKEND }}
+          DJANGO_SECRET_KEY: ${{ env.DJANGO_SECRET_KEY }}
+        run: |
+          python manage.py test

@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  watchtower:
+    image: index.docker.io/containrrr/watchtower:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/config.json
+    command: --interval 30
+    profiles:
+      - app
+  app:
+    image: index.docker.io/{{ docker_username }}/{{ docker_appname }}:latest
+    restart: always
+    env_file: ./.env
+    container_name: {{ docker_appname }}
+    environment:
+      - PORT=8080
+    ports:
+      - "80:8080"
+    expose:
+      - 80
+    volumes:
+      - ./certs:/app/certs
+    profiles:
+      - app

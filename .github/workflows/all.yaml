@@ -1,0 +1,58 @@
+name: 0 - Run Everything
+
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test_django:
+    uses: ./.github/workflows/test-django-mysql.yaml
+  build_container:
+    needs: test_django
+    uses: ./.github/workflows/container.yaml
+    secrets:
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        DOCKERHUB_APP_NAME: ${{ secrets.DOCKERHUB_APP_NAME }}
+  update_infra:
+    needs: build_container
+    uses: ./.github/workflows/infra.yaml
+    secrets:
+        ALLOWED_HOST: ${{ secrets.ALLOWED_HOST }}
+        DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        DJANGO_VM_COUNT: ${{ secrets.DJANGO_VM_COUNT }}
+        DOCKERHUB_APP_NAME: ${{ secrets.DOCKERHUB_APP_NAME }}
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        LINODE_BUCKET_REGION: ${{ secrets.LINODE_BUCKET_REGION }}
+        LINODE_BUCKET_ACCESS_KEY: ${{ secrets.LINODE_BUCKET_ACCESS_KEY }}
+        LINODE_BUCKET_SECRET_KEY: ${{ secrets.LINODE_BUCKET_SECRET_KEY }}
+        LINODE_IMAGE: ${{ secrets.LINODE_IMAGE }}
+        LINODE_OBJECT_STORAGE_DEVOPS_BUCKET: ${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_BUCKET }}
+        LINODE_OBJECT_STORAGE_DEVOPS_TF_KEY: ${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_TF_KEY }}
+        LINODE_OBJECT_STORAGE_DEVOPS_ACCESS_KEY: ${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_ACCESS_KEY }}
+        LINODE_OBJECT_STORAGE_DEVOPS_SECRET_KEY: ${{ secrets.LINODE_OBJECT_STORAGE_DEVOPS_SECRET_KEY }}
+        LINODE_BUCKET: ${{ secrets.LINODE_BUCKET }}
+        LINODE_PA_TOKEN: ${{ secrets.LINODE_PA_TOKEN }}
+        MYSQL_DB_CERT: ${{ secrets.MYSQL_DB_CERT }}
+        MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+        MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+        MYSQL_DB_ROOT_PASSWORD: ${{ secrets.MYSQL_DB_ROOT_PASSWORD }}
+        MYSQL_DB_PORT: ${{ secrets.MYSQL_DB_PORT }}
+        MYSQL_USER: ${{ secrets.MYSQL_USER }}
+        ROOT_USER_PW:  ${{ secrets.ROOT_USER_PW }}
+        SSH_PUB_KEY: ${{ secrets.SSH_PUB_KEY }}
+        SSH_DEVOPS_KEY_PUBLIC: ${{ secrets.SSH_DEVOPS_KEY_PUBLIC }}
+        SSH_DEVOPS_KEY_PRIVATE: ${{ secrets.SSH_DEVOPS_KEY_PRIVATE }}
+  collectstatic:
+    needs: test_django
+    uses: ./.github/workflows/staticfiles.yaml
+    secrets:
+        LINODE_BUCKET: ${{ secrets.LINODE_BUCKET }}
+        LINODE_BUCKET_REGION: ${{ secrets.LINODE_BUCKET_REGION }}
+        LINODE_BUCKET_ACCESS_KEY: ${{ secrets.LINODE_BUCKET_ACCESS_KEY }}
+        LINODE_BUCKET_SECRET_KEY: ${{ secrets.LINODE_BUCKET_SECRET_KEY }}
